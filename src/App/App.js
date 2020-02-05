@@ -9,19 +9,55 @@ import dummyStore from '../dummy-store';
 import {getNotesForFolder, findNote, findFolder} from '../notes-helpers';
 import './App.css';
 
+import notefulContext from '../notefulContext';
+
 class App extends Component {
     state = {
         notes: [],
-        folders: []
+        folders: [],
+        error: null
     };
 
+    fetchNotes() {
+        return(
+            fetch('http://localhost:9090/notes')
+            .then(resp => {
+                if(resp.ok) {
+                    return resp.json();
+                }
+                return Promise.reject('Error fetching notes from server!');
+            })
+            .catch(err => {
+                this.setState({error: err})
+            })
+        )
+    }
+
+    fetchFolders() {
+        return(
+            fetch('http://localhost:9090/folders')
+            .then(res => {
+                if(res.ok) {
+                    return res.json();
+                }
+                return Promise.reject('Error fetching folders from server!');
+            })
+            .catch(err => {
+                this.setState({error: err})
+            })
+        )
+    }
+
     componentDidMount() {
-        // fake date loading from API call
-        setTimeout(() => this.setState(dummyStore), 600);
+        this.fetchNotes().then(notes => this.setState({notes}));
+        this.fetchFolders().then(folders => this.setState({folders}));
     }
 
     renderNavRoutes() {
-        const {notes, folders} = this.state;
+        const contextValue = {
+            folders: this.state.folders,
+            notes: this.state.notes,
+        }
         return (
             <>
                 {['/', '/folder/:folderId'].map(path => (
@@ -30,11 +66,12 @@ class App extends Component {
                         key={path}
                         path={path}
                         render={routeProps => (
-                            <NoteListNav
-                                folders={folders}
-                                notes={notes}
-                                {...routeProps}
-                            />
+                            <notefulContext.Provider
+                                value={contextValue}>
+                                <NoteListNav
+                                    {...routeProps}
+                                />
+                            </notefulContext.Provider>
                         )}
                     />
                 ))}
@@ -42,8 +79,8 @@ class App extends Component {
                     path="/note/:noteId"
                     render={routeProps => {
                         const {noteId} = routeProps.match.params;
-                        const note = findNote(notes, noteId) || {};
-                        const folder = findFolder(folders, note.folderId);
+                        const note = findNote(contextValue.notes, noteId) || {};
+                        const folder = findFolder(contextValue.notes, note.folderId);
                         return <NotePageNav {...routeProps} folder={folder} />;
                     }}
                 />
@@ -54,7 +91,6 @@ class App extends Component {
     }
 
     renderMainRoutes() {
-        const {notes, folders} = this.state;
         return (
             <>
                 {['/', '/folder/:folderId'].map(path => (
@@ -65,14 +101,16 @@ class App extends Component {
                         render={routeProps => {
                             const {folderId} = routeProps.match.params;
                             const notesForFolder = getNotesForFolder(
-                                notes,
+                                this.state.notes,
                                 folderId
                             );
                             return (
-                                <NoteListMain
-                                    {...routeProps}
-                                    notes={notesForFolder}
-                                />
+                                <notefulContext.Provider
+                                    value={{notes: notesForFolder, deleteNote: (noteId) => this.deleteNote(noteId)}}>
+                                    <NoteListMain
+                                        {...routeProps}
+                                    />
+                                </notefulContext.Provider>
                             );
                         }}
                     />
@@ -81,12 +119,38 @@ class App extends Component {
                     path="/note/:noteId"
                     render={routeProps => {
                         const {noteId} = routeProps.match.params;
-                        const note = findNote(notes, noteId);
-                        return <NotePageMain {...routeProps} note={note} />;
+                        const note = findNote(this.state.notes, noteId);
+                        return <NotePageMain {...routeProps} note={note} deleteNote={(noteId) => this.deleteNote(noteId)} />;
                     }}
                 />
             </>
         );
+    }
+
+    renderError() {
+        return (
+            <div className='Error'>
+                <h2>Error!</h2>
+                <p>{this.state.error.message}</p>
+            </div>
+        );
+    }
+
+    deleteNote(noteId) {
+        fetch(`http://localhost:9090/notes/${noteId}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        }).then(resp => {
+            if(resp.ok) {
+                return Promise.resolve('Success!');
+            }
+            return Promise.reject('Error removing note from server!');
+        }).catch(err => {
+            this.setState({error: err});
+        });
+        this.setState({notes: this.state.notes.filter(note => note.id !== noteId)});
     }
 
     render() {
@@ -99,7 +163,7 @@ class App extends Component {
                         <FontAwesomeIcon icon="check-double" />
                     </h1>
                 </header>
-                <main className="App__main">{this.renderMainRoutes()}</main>
+        <main className="App__main">{this.state.err ? this.renderError() : this.renderMainRoutes()}</main>
             </div>
         );
     }

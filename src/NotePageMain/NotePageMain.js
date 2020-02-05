@@ -9,6 +9,10 @@ export default function NotePageMain(props) {
         id={props.note.id}
         name={props.note.name}
         modified={props.note.modified}
+        delete={(noteId) => {
+          props.history.goBack()
+          props.deleteNote(noteId)
+        }}
       />
       <div className='NotePageMain__content'>
         {props.note.content.split(/\n \r|\n/).map((para, i) =>
