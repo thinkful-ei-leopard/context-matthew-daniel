@@ -5,8 +5,6 @@ import NoteListNav from '../NoteListNav/NoteListNav';
 import NotePageNav from '../NotePageNav/NotePageNav';
 import NoteListMain from '../NoteListMain/NoteListMain';
 import NotePageMain from '../NotePageMain/NotePageMain';
-import dummyStore from '../dummy-store';
-import {getNotesForFolder, findNote, findFolder} from '../notes-helpers';
 import './App.css';
 
 import notefulContext from '../notefulContext';
@@ -54,10 +52,6 @@ class App extends Component {
     }
 
     renderNavRoutes() {
-        const contextValue = {
-            folders: this.state.folders,
-            notes: this.state.notes,
-        }
         return (
             <>
                 {['/', '/folder/:folderId'].map(path => (
@@ -65,27 +59,12 @@ class App extends Component {
                         exact
                         key={path}
                         path={path}
-                        render={routeProps => (
-                            <notefulContext.Provider
-                                value={contextValue}>
-                                <NoteListNav
-                                    {...routeProps}
-                                />
-                            </notefulContext.Provider>
-                        )}
+                        component={NoteListNav}
                     />
                 ))}
-                <Route
-                    path="/note/:noteId"
-                    render={routeProps => {
-                        const {noteId} = routeProps.match.params;
-                        const note = findNote(contextValue.notes, noteId) || {};
-                        const folder = findFolder(contextValue.notes, note.folderId);
-                        return <NotePageNav {...routeProps} folder={folder} />;
-                    }}
-                />
-                <Route path="/add-folder" component={NotePageNav} />
-                <Route path="/add-note" component={NotePageNav} />
+                <Route path="/note/:noteId" component={NotePageNav}/>
+                <Route path="/add-folder" component={NotePageNav}/>
+                <Route path="/add-note" component={NotePageNav}/>
             </>
         );
     }
@@ -98,30 +77,10 @@ class App extends Component {
                         exact
                         key={path}
                         path={path}
-                        render={routeProps => {
-                            const {folderId} = routeProps.match.params;
-                            const notesForFolder = getNotesForFolder(
-                                this.state.notes,
-                                folderId
-                            );
-                            return (
-                                <notefulContext.Provider
-                                    value={{notes: notesForFolder, deleteNote: (noteId) => this.deleteNote(noteId)}}>
-                                    <NoteListMain
-                                        {...routeProps}
-                                    />
-                                </notefulContext.Provider>
-                            );
-                        }}
+                        component={NoteListMain}
                     />
                 ))}
-                <Route
-                    path="/note/:noteId"
-                    render={routeProps => {
-                        const {noteId} = routeProps.match.params;
-                        const note = findNote(this.state.notes, noteId);
-                        return <NotePageMain {...routeProps} note={note} deleteNote={(noteId) => this.deleteNote(noteId)} />;
-                    }}
+                <Route path="/note/:noteId" component={NotePageMain}
                 />
             </>
         );
@@ -147,14 +106,20 @@ class App extends Component {
                 return Promise.resolve('Success!');
             }
             return Promise.reject('Error removing note from server!');
-        }).catch(err => {
-            this.setState({error: err});
+        }).then(resp => {
+            this.setState({notes: this.state.notes.filter(note => note.id !== noteId)});
         });
-        this.setState({notes: this.state.notes.filter(note => note.id !== noteId)});
+        
     }
 
     render() {
+        const contextValue = {
+            folders: this.state.folders,
+            notes: this.state.notes,
+            deleteNote: (noteId) => this.deleteNote(noteId)
+        }
         return (
+            <notefulContext.Provider value={contextValue}>
             <div className="App">
                 <nav className="App__nav">{this.renderNavRoutes()}</nav>
                 <header className="App__header">
@@ -165,6 +130,7 @@ class App extends Component {
                 </header>
         <main className="App__main">{this.state.err ? this.renderError() : this.renderMainRoutes()}</main>
             </div>
+            </notefulContext.Provider>
         );
     }
 }

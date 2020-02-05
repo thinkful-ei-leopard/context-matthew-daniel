@@ -7,14 +7,17 @@ import "./NoteListMain.css";
 
 import notefulContext from "../notefulContext";
 
-export default function NoteListMain() {
+import { getNotesForFolder } from '../notes-helpers'
+
+export default function NoteListMain(props) {
   return (
     <notefulContext.Consumer>
       {value => {
+        const notes = getNotesForFolder(value.notes, props.match.params.folderId)
         return (
           <section className="NoteListMain">
             <ul>
-              {value.notes.map(note => (
+              {notes.map(note => (
                 <li key={note.id}>
                   <Note
                     id={note.id}
@@ -42,4 +45,10 @@ export default function NoteListMain() {
       }}
     </notefulContext.Consumer>
   );
+}
+
+NoteListMain.defaultProps = {
+  match: {
+    params: {}
+  }
 }
